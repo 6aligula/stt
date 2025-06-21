@@ -21,16 +21,48 @@ dotenv.config();
 // Inicializar Express
 const app = express();
 
-// Configuración de CORS más permisiva para desarrollo
+// Configuración de CORS más permisiva
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://stt-function-gjoom7xsla-ew.a.run.app'
+];
+
 const corsOptions = {
-  origin: '*', // En producción, reemplaza con la URL de tu frontend
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+    // Permitir solicitudes sin origen (como aplicaciones móviles o curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  credentials: true,
+  maxAge: 86400 // 24 horas
 };
 
+// Aplicar CORS a todas las rutas
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); // Habilitar preflight para todas las rutas
+
+// Agregar headers manualmente para asegurar que se apliquen
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Manejar solicitudes preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  // Llamar a next() para continuar con el siguiente middleware
+  return next();
+});
 
 // Middleware para parsear el cuerpo de la solicitud como buffer
 app.use(express.raw({
@@ -59,8 +91,17 @@ type ElevenLabsResponse = {
 
 // Ruta para manejar la transcripción de audio
 app.post('/transcribe', async (req: Request, res: Response) => {
+  const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  console.log(`[${requestId}] Solicitud de transcripción recibida`);
+  console.log(`[${requestId}] Headers:`, JSON.stringify(req.headers, null, 2));
+  
   try {
-    console.log('Solicitud de transcripción recibida');
+    if (!req.body || req.body.length === 0) {
+      console.error(`[${requestId}] Error: No se proporcionó ningún audio`);
+      return res.status(400).json({ error: 'No se proporcionó ningún audio' });
+    }
+    
+    console.log(`[${requestId}] Tamaño del audio recibido: ${req.body.length} bytes`);
     
     // Verificar que hay datos en el cuerpo
     if (!req.body || req.body.length === 0) {
@@ -76,32 +117,30 @@ app.post('/transcribe', async (req: Request, res: Response) => {
 
     // Obtener el buffer de audio del cuerpo de la solicitud
     const audioBuffer = req.rawBody || Buffer.from(JSON.stringify(req.body));
-    console.log(`Tamaño del audio recibido: ${audioBuffer.length} bytes`);
+    console.log(`[${requestId}] Buffer de audio preparado, longitud: ${audioBuffer.length} bytes`);
     
-    console.log('Enviando audio a la API de ElevenLabs...');
+    // Crear el formulario con el archivo de audio
+    const form = new FormData();
+    
+    // Añadir el archivo de audio al formulario usando 'file' como nombre de campo
+    form.append('file', audioBuffer, {
+      filename: 'audio.webm',
+      contentType: 'audio/webm',
+      knownLength: audioBuffer.length
+    });
+    
+    // Añadir parámetros adicionales como campos del formulario
+    form.append('model_id', ELEVEN_LABS_MODEL_ID);
+    form.append('language_code', ELEVEN_LABS_LANGUAGE);
+    
+    // Obtener los headers del formulario
+    const formHeaders = form.getHeaders();
+    
+    console.log(`[${requestId}] Enviando audio a ElevenLabs...`);
+    console.log(`[${requestId}] URL: ${ELEVEN_LABS_API_URL}`);
+    console.log(`[${requestId}] Tamaño del formulario: ${form.getLengthSync()} bytes`);
     
     try {
-      // Importar módulos necesario
-      
-      // Crear el formulario con el archivo de audio
-      const form = new FormData();
-      
-      // Añadir el archivo de audio al formulario usando 'file' como nombre de campo
-      form.append('file', audioBuffer, {
-        filename: 'audio.webm',
-        contentType: 'audio/webm',
-        knownLength: audioBuffer.length
-      });
-      
-      // Añadir parámetros adicionales como campos del formulario
-      form.append('model_id', ELEVEN_LABS_MODEL_ID);
-      form.append('language_code', ELEVEN_LABS_LANGUAGE);
-      
-      // Obtener los headers del formulario
-      const formHeaders = form.getHeaders();
-      
-      console.log('Enviando petición a ElevenLabs...');
-      
       // Llamar a la API de ElevenLabs para la transcripción
       const apiResponse = await fetch(ELEVEN_LABS_API_URL, {
         method: 'POST',
@@ -114,44 +153,42 @@ app.post('/transcribe', async (req: Request, res: Response) => {
         body: form
       });
 
-      console.log('Respuesta de la API de ElevenLabs:', apiResponse.status, apiResponse.statusText);
+      console.log(`[${requestId}] Código de estado de ElevenLabs: ${apiResponse.status}`);
       
       if (!apiResponse.ok) {
         const errorText = await apiResponse.text();
-        console.error('Error en la API de ElevenLabs:', apiResponse.status, errorText);
+        console.error(`[${requestId}] Error de ElevenLabs:`, errorText);
         return res.status(apiResponse.status).json({ 
           error: 'Error al procesar el audio', 
-          details: errorText 
+          details: errorText,
+          requestId
         });
       }
       
       const result = await apiResponse.json() as ElevenLabsResponse;
+      console.log(`[${requestId}] Respuesta de ElevenLabs:`, JSON.stringify(result, null, 2));
       
       const transcriptText = result?.text || 
                            result?.results?.transcripts?.[0]?.transcript || 
                            'No se pudo transcribir el audio';
-      
-      console.log('Transcripción exitosa:', transcriptText);
+      console.log(`[${requestId}] Transcripción exitosa:`, transcriptText);
       
       return res.json({ 
-        text: transcriptText,
-        status: 'success' 
+        text: transcriptText, 
+        status: 'success',
+        requestId
       });
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      console.error('Error al llamar a la API de ElevenLabs:', error);
-      return res.status(500).json({ 
-        error: 'Error al conectar con el servicio de transcripción',
-        details: errorMessage 
-      });
+    } catch (apiError) {
+      console.error(`[${requestId}] Error al llamar a la API de ElevenLabs:`, apiError);
+      throw apiError;
     }
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-    console.error('Error procesando la solicitud:', error);
+    console.error(`[${requestId}] Error en el servidor:`, error);
     return res.status(500).json({ 
-      error: 'Error interno del servidor',
-      details: errorMessage 
+      error: 'Error interno del servidor', 
+      details: errorMessage,
+      requestId
     });
   }
 });
