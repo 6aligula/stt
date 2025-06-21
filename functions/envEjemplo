@@ -1,0 +1,12 @@
+# Configuración de ElevenLabs
+# Copia este archivo a .env y reemplaza los valores con tus credenciales reales
+
+# API Key de ElevenLabs (obtén una en https://elevenlabs.io/)
+ELEVEN_LABS_API_KEY=sk_tu_api_key_de_elevenlabs_aquí
+
+# ID de voz de ElevenLabs (puedes usar el valor por defecto o cambiarlo)
+ELEVEN_LABS_VOICE_ID=21m00Tcm4TlvDq8ikWAM
+
+# Configuraciones adicionales (opcionales)
+# PORT=8080
+# NODE_ENV=development
