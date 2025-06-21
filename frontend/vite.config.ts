@@ -12,15 +12,33 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      // Redirigir a la función de Cloud Run con prefijo /api
       '/api': {
-        target: 'http://localhost:8080', // URL de tu Cloud Function local
+        target: 'https://stt-function-gjoom7xsla-ew.a.run.app',
         changeOrigin: true,
+        secure: false,
         rewrite: (path) => path.replace(/^\/api/, '')
+      },
+      // Redirigir directamente a la función de Cloud Run
+      '/transcribe': {
+        target: 'https://stt-function-gjoom7xsla-ew.a.run.app',
+        changeOrigin: true,
+        secure: false
+      },
+      // Redirigir a la función de Cloud Run con prefijo /gcp
+      '/gcp': {
+        target: 'https://stt-function-gjoom7xsla-ew.a.run.app',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/gcp/, '')
       }
-    }
+    },
   },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+  },
+  preview: {
+    port: 4173,
   },
 });

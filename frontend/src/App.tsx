@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import config from './config';
 
 const App = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -153,13 +154,33 @@ const App = () => {
       // Convertir el Blob a ArrayBuffer
       const audioBuffer = await audioBlob.arrayBuffer();
       
-      // Enviar el audio directamente como ArrayBuffer
-      const response = await axios.post('/api/transcribe', audioBuffer, {
+      // Usar directUrl en producción, apiUrl en desarrollo
+      const apiUrl = import.meta.env.PROD ? config.directUrl : config.apiUrl;
+      
+      console.log('Enviando audio a:', apiUrl);
+      console.log('Tamaño del audio:', audioBuffer.byteLength, 'bytes');
+      console.log('Tipo MIME del audio:', audioBlob.type);
+      
+      // Determinar el tipo de contenido basado en el tipo MIME del blob
+      const contentType = audioBlob.type || 'audio/webm';
+      
+      // Enviar el audio al endpoint configurado
+      const response = await axios.post(apiUrl, audioBuffer, {
         headers: {
-          'Content-Type': 'audio/webm', // Cambiado a audio/webm que es el formato que usa MediaRecorder por defecto
-          'Accept': 'application/json'
+          'Content-Type': contentType,
+          'Accept': 'application/json',
+          // Agregar un ID de solicitud para seguimiento
+          'X-Request-ID': `frontend-${Date.now()}`
         },
         responseType: 'json',
+        withCredentials: false, // Importante para evitar problemas con CORS
+        timeout: 30000 // Timeout de 30 segundos
+      });
+      
+      console.log('Respuesta del servidor:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data
       });
       
       console.log('Respuesta del backend:', response.data);
