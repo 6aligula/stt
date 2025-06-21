@@ -5,9 +5,11 @@ Aplicación web para convertir voz a texto en tiempo real utilizando la API de E
 ## Características
 
 - 🎙️ Grabación de voz en tiempo real
-- 📝 Transcripción de voz a texto
+- ⚡ Transcripción en tiempo real con Web Audio API
+- 📝 Visualización de transcripción continua
 - 🌊 Visualización de ondas de sonido
-- ⚡ Procesamiento en la nube con Google Cloud Functions
+- ☁️ Procesamiento en la nube con Google Cloud Run
+- 🔒 Configuración segura con variables de entorno
 - 🎨 Interfaz de usuario moderna y responsiva
 
 ## Requisitos previos
@@ -16,6 +18,15 @@ Aplicación web para convertir voz a texto en tiempo real utilizando la API de E
 - npm o yarn
 - Cuenta de Google Cloud Platform (para desplegar la Cloud Function)
 - API Key de ElevenLabs
+
+## 🚀 Características en Tiempo Real
+
+La aplicación ahora soporta transcripción en tiempo real con las siguientes características:
+
+- **Grabación por fragmentos**: Procesa el audio en fragmentos pequeños para baja latencia
+- **WebSocket opcional**: Soporte para actualizaciones en tiempo real
+- **Buffer inteligente**: Manejo eficiente de la transmisión de audio
+- **Reconexión automática**: Manejo robusto de errores de red
 
 ## Configuración del entorno
 
@@ -42,7 +53,25 @@ Aplicación web para convertir voz a texto en tiempo real utilizando la API de E
    npm run serve
    ```
 
-5. Para desplegar a Google Cloud:
+5. Para desplegar a Google Cloud usando el script de despliegue:
+   ```bash
+   # Dar permisos de ejecución al script
+   chmod +x deploy-function.sh
+   
+   # Ejecutar el script con tu API key
+   ./deploy-function.sh tu_api_key_de_elevenlabs
+   ```
+   
+   O manualmente con gcloud:
+   ```bash
+   gcloud run deploy stt-function \
+     --source ./functions \
+     --region=europe-west1 \
+     --platform=managed \
+     --allow-unauthenticated \
+     --project=tu-proyecto \
+     --set-env-vars="ELEVEN_LABS_API_KEY=tu_api_key_de_elevenlabs"
+   ```
    ```bash
    gcloud functions deploy stt-function --gen2 --runtime=nodejs18 --region=europe-west1 --source=. --entry-point=sttHandler --trigger-http --allow-unauthenticated
    ```
